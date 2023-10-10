@@ -64,38 +64,61 @@ async def get_age(message: types.Message, state: FSMContext):
 
     await message.reply(f"Готовься к поиску путник!!!")
 
-available_users = []
+available_users = {}
 
-@dp.chat_member()
-async def on_chat_member_join(message: types.ChatMemberUpdated):
-    user_id = message.new_chat_member.user.id
-    if user_id != bot.id:  # Игнорируем событие, если это вход бота в чат
-        available_users.append(user_id)
-        print(f"Добавлен новый пользователь. Список доступных пользователей: {available_users}")
+# @dp.chat_member()
+# async def on_chat_member_join(message: types.ChatMemberUpdated):
+#     user_id = message.new_chat_member.user.id
+#     if user_id != bot.id:  # Игнорируем событие, если это вход бота в чат
+#         available_users.append(user_id)
+#         print(f"Добавлен новый пользователь. Список доступных пользователей: {available_users}")
+#
+#
+# # Хэндлер на событие выхода пользователя из чата
+# @dp.chat_member()
+# async def on_chat_member_leave(message: types.ChatMemberUpdated):
+#     user_id = message.left_chat_member.user.id
+#     if user_id != bot.id:  # Игнорируем событие, если это выход бота из чата
+#         available_users.remove(user_id)
+#
 
-
-# Хэндлер на событие выхода пользователя из чата
-@dp.chat_member()
-async def on_chat_member_leave(message: types.ChatMemberUpdated):
-    user_id = message.left_chat_member.user.id
-    if user_id != bot.id:  # Игнорируем событие, если это выход бота из чата
-        available_users.remove(user_id)
+# @form_router.message(Form.MATCHED)
+# async def handle_matched_chat(message: types.Message, state: FSMContext):
+#     chat_id = message.chat.id
+#     if chat_id in active_chats:
+#         partner_chat_id = active_chats[chat_id]
+#         if partner_chat_id:
+#             await bot.send_message(partner_chat_id, message.text)
+#         else:
+#             await message.reply("Ожидание собеседника...")
+#     else:
+#         await message.reply("Чат закончен.")
+#         await state.finish()
 
 
 @dp.message(Command('search'))
 async def cmd_search(message: types.Message, state: FSMContext):
     chat_id = message.chat.id
 
-
     if chat_id in active_chats:
         await message.reply("Вы уже ищите!")
         return
 
-    available_users.append(chat_id)
 
-    if available_users:
 
-        partner_chat_id = available_users.pop()  # Берем первого доступного пользователя
+    user_data = await state.get_data()
+    age = user_data.get("age")
+
+    available_users[f"{message.chat.id}"] = age
+
+    if age is None:
+        await message.reply("Сначала укажите свой возраст с помощью команды /start")
+        return
+
+    suitable_users = get_suitable_users(age)
+
+    if suitable_users:
+        partner_chat_id = suitable_users.pop()  # Берем первого подходящего пользователя
         active_chats[chat_id] = partner_chat_id
         active_chats[partner_chat_id] = chat_id
         await state.set_state(Form.MATCHED)
@@ -103,11 +126,38 @@ async def cmd_search(message: types.Message, state: FSMContext):
     else:
         await message.reply("Ожидайте...")
 
+
+def get_suitable_users(age):
+    suitable_users = []
+    for user_id, user_age in available_users.items():
+        if user_age is not None and abs(int(user_age) - int(age)) <= 5:  # Преобразовываем значения в числа перед вычитанием
+            suitable_users.append(user_id)
+    return suitable_users
+
+# @form_router.message(Form.MATCHED)
+# async def handle_matched_chat(message: types.Message, state: FSMContext):
+#     chat_id = message.chat.id
+#     partner_chat_id = active_chats.get(chat_id)
+#
+#     if partner_chat_id is None:
+#         await message.reply("Вы не в активном чате.")
+#         return
+#
+#     partner_age = available_users.get(partner_chat_id)
+#     if partner_age is None:
+#         await message.reply("Возраст партнера неизвестен.")
+#     else:
+#         await message.reply(f"Возраст вашего партнера: {partner_age} лет.")
+#
+
+
 @form_router.message(Form.MATCHED)
 async def handle_matched_chat(message: types.Message, state: FSMContext):
     chat_id = message.chat.id
+
     if chat_id in active_chats:
         partner_chat_id = active_chats[chat_id]
+
         if partner_chat_id:
             await bot.send_message(partner_chat_id, message.text)
         else:
