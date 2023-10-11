@@ -36,7 +36,7 @@ active_chats = {}
 async def cmd_start(message: types.Message, state: FSMContext):
     reply_markup = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Привет!!!"), ]
+            [KeyboardButton(text="Anon"), ]
         ],
         resize_keyboard=True,
         one_time_keyboard=True
@@ -48,22 +48,20 @@ async def cmd_start(message: types.Message, state: FSMContext):
 async def get_name(message: types.Message, state: FSMContext):
     name = message.text
     await state.update_data(name=name)
-    reply_markup = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Продолжить!"), ]
-        ],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
     await state.set_state(Form.age)  # Переходим к следующему состоянию
-    await message.reply(f"Приятно познакомиться, {name}! Укажи свой возраст", reply_markup=reply_markup)
+    await message.reply(f"Приятно познакомиться, {name}! Укажи свой возраст")
 
 @form_router.message(Form.age)
 async def get_age(message: types.Message, state: FSMContext):
-    age=message.text
-    await state.update_data(age=age)
+    age = message.text
 
-    await message.reply(f"Готовься к поиску путник!!!")
+    if not age.isdigit():
+        await message.reply("Возраст должен быть числом. Пожалуйста, введите свой возраст числом.")
+        return
+
+    await state.update_data(age=int(age))
+    await message.reply(f"Готовься к поиску путник!!! Чтобы начать поиск введи /search")
+
 
 available_users = {}
 async def check_available_partners(chat_id, state):
@@ -144,7 +142,7 @@ async def handle_matched_chat(message: types.Message, state: FSMContext):
             await message.reply("Ожидание собеседника...")
     else:
         await message.reply("Чат закончен.")
-        await state.finish()
+        await state.clear()
 
 @dp.message(Command('remove'))
 async def handle_remove_command(message: types.Message, state: FSMContext):
@@ -161,9 +159,7 @@ async def handle_remove_command(message: types.Message, state: FSMContext):
     else:
         await message.reply("Вы не в активном чате.")
 
-    await state.finish()
-
-
+    await state.clear()
 
 # Запуск процесса поллинга новых апдейтов
 async def main():
